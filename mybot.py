@@ -7,7 +7,7 @@ import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1kslpgKpK0WGbgVCuz80o"
+TELEGRAM_TOKEN = "9168291290:AAGGtKKlBgin-UMb3c2DC_kMQ-Ug6jJZ7wU"
 GEMINI_API_KEY = "AQ.Ab8RN6LdSn9ozFgP722lN2FA1b_N4ue8tmR1-ak83oECVwELOQ" # የአንተ አዲስ AQ. ቁልፍ
 # ==================================================================
 
