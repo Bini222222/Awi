@@ -8,7 +8,7 @@ import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
 TELEGRAM_TOKEN = "9168291290:AAGGtKKlBgin-UMb3c2DC_kMQ-Ug6jJZ7wU"
-GEMINI_API_KEY = "AQ.Ab8RN6LdSn9ozFgP722lN2FA1b_N4ue8tmR1-ak83oECVwELOQ" # የአንተ አዲስ AQ. ቁልፍ
+GEMINI_API_KEY = "AQ.Ab8RN6IZmuG6wyVe_r8Smq2QLR1lgo9m-oaCzeB3SfvF7678Pw" # የአንተ አዲስ AQ. ቁልፍ
 # ==================================================================
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
