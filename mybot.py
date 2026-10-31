@@ -31,10 +31,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 system_instruction="You are a helpful assistant. Always reply in Amharic."
             )
         )
-        bot_reply = response.text
-await update.message.reply_text(bot_reply)
-    except Exception as e:
-        print(f"Error: {e}")
+            bot_reply = response.text
+    await update.message.reply_text(bot_reply)
+except Exception as e:
+    print(f"Error: {e}")
         await update.message.reply_text("ይቅርታ፣ መልስ ለመስጠት ስሞክር ስህተት ተፈጥሯል። እባክዎ ቆይተው እንደገና ይሞክሩ።")
 
 app = Flask(__name__)
