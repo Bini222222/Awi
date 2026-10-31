@@ -9,7 +9,7 @@ import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
 TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1ksIpgKpK0WGbgVCuz80o"
-GEMINI_API_KEY = "AQ.Ab8RN6KYp327LnNhxxuBmSpnRp7GYjR4pwJpSBGZiVJAoFYFCw"
+GEMINI_API_KEY = "AQ.Ab8RN6Jco2c96ahxnHR9V-2FTV8RNgqCNkwpt2o74fTRre8BPA"
 # ==================================================================
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
