@@ -28,7 +28,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "llama-3.1-8b-instant", # ፈጣኑ እና ነፃው የGroq ሞዴል
+                "model": "openai/gpt-oss-20b", # ፈጣኑ እና ነፃው የGroq ሞዴል
                 "messages": [
                     {"role": "system", "content": "You are a helpful assistant. Always reply in Amharic."},
                     {"role": "user", "content": user_message}
