@@ -7,7 +7,7 @@ import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1kslpgKpK0WGbgVCuz80o"
+TELEGRAM_TOKEN = "9168291290:AAGBsZipR-V9ZQeY5Hb2sZpDBLG4B45aN6U"
 GROQ_API_KEY = "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" # በ gsk_ የሚጀምረውን ቁልፍ
 # ==================================================================
 
