@@ -7,7 +7,7 @@ import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1kslpgKpK0WGbgVCuz80o" 
+TELEGRAM_TOKEN = "9168291290:AAEgnKEeTQITEmilLKsXeF7_EswrqCMvj7c" 
 # ==================================================================
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
