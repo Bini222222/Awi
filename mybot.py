@@ -1,190 +1,146 @@
 import logging
-import random
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from flask import Flask
 import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAFYfrBrGmwj3IJBJGSjb-L4qKcXauqw9pM" 
-ADMIN_ID = 8776479328  # <--- የእርስዎን ID እዚህ ያስገቡ
+TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1kslpgKpK0WGbgVCuz80o" 
+ADMIN_ID = 8776479328  # <--- የእርስዎን የቴሌግራም ID እዚህ ያስገቡ
 # ==================================================================
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# የጨዋታ መረጃ ማስቀመጫ
-user_cards = {}        
-drawn_numbers = []     
-eliminated_users = set() 
-banned_users = set()     
-game_active = False    
-game_joining = False  # አዲስ፦ ሰዎች እየተቀላቀሉ መሆኑን ለማወቅ
-game_chat_id = None    
+# የአገልግሎቶች እና መመሪያዎች ዝርዝር (የጠየቁት ሰነዶች ተካተዋል)
+SERVICES = {
+    "plan": {
+        "name": "📐 ፕላን ስምምነት",
+        "docs": "1. Original site plan (ኦሪጅናል ሳይት ፕላን)\n2. ነባር የፀደቀ ፕላን (ካለው)\n3. ክእዳ እና እግዳ ነፃ ስለመሆኑ መረጃ\n4. የመሬት ካርታ (የባለቤትነት ማረጋገጫ)"
+    },
+    "new_house": {
+        "name": "🏠 አዲስ መኖሪያ ቤት ፍቃድ",
+        "docs": "1. Original site plan (ኦሪጅናል ሳይት ፕላን)\n2. ነባር የፀደቀ ፕላን (ካለው)\n3. ክእዳ እና እግዳ ነፃ ስለመሆኑ መረጃ\n4. የተረጋገጠ ፕላን (በምህንድስና ባለሙያ የተፈረመ)\n5. የባለቤት መታወቂያ ኮፒ"
+    },
+    "built_house": {
+        "name": "🏡 የተሰራ ቤት ፕላን ማፅደቅ",
+        "docs": "1. Original site plan (ኦሪጅናል ሳይት ፕላን)\n2. ነባር የፀደቀ ፕላን (ካለው)\n3. ክእዳ እና እግዳ ነፃ ስለመሆኑ መረጃ\n4. የተጠናቀቀው ቤት ፎቶ\n5. የመሬት ካርታ"
+    },
+    "fence": {
+        "name": "🧱 የአጥር ፍቃድ",
+        "docs": "1. Original site plan (ኦሪጅናል ሳይት ፕላን)\n2. ነባር የፀደቀ ፕላን (ካለው)\n3. ክእዳ እና እግዳ ነፃ ስለመሆኑ መረጃ\n4. የመሬት ካርታ\n5. የቀበሌ ደብዳቤ"
+    },
+    "renovation": {
+        "name": "🛠️ የእድሳት ፍቃድ",
+        "docs": "1. Original site plan (ኦሪጅናል ሳይት ፕላን)\n2. ነባር የፀደቀ ፕላን (ካለው)\n3. ክእዳ እና እግዳ ነፃ ስለመሆኑ መረጃ\n4. የአሮጌው ቤት ፎቶ\n5. የሚደረገው ማሻሻያ ፕላን/ስዕል"
+    }
+}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    # የተጠቃሚውን የፋይል መላኪያ ሁኔታ ማጽዳት
+    context.user_data.clear()
     
-    if user_id in banned_users:
-        await update.message.reply_text("🚫 እርስዎ በአስተዳዳሪው ከBingo ጨዋታ ተከልክለዋል!")
-        return
-
-    keyboard = [[InlineKeyboardButton("🎮 PLAY BINGO", callback_data="play_action")]]
+    keyboard = []
+    for key, service in SERVICES.items():
+        keyboard.append([InlineKeyboardButton(service['name'], callback_data=key)])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "እንኳን ወደ Bingo ጨዋታ በደህና መጡ! 🎲\n\n"
-        "ጨዋታውን ለመጀመር እና ካርድ ለማግኘት ከታች ያለውን ቁልፍ ይጫኑ።\n"
-        "⚠️ ሁሉም ሰው ካርድ እንዲያገኝ 30 ሰከንድ የመጠበቂያ ጊዜ ይሰጣል።",
+        "እንኳን ወደ ህንፃ ፈቃድ መመሪያ ቦት በደህና መጡ! 🏗️\n\n"
+        "እባክዎ ማወቅ የሚፈልጉትን አገልግሎት ከታች ይምረጡ፦",
         reply_markup=reply_markup
     )
 
-async def start_countdown(context: ContextTypes.DEFAULT_TYPE):
-    global game_active, game_joining, game_chat_id, drawn_numbers
-    
-    # 30 ሰከንድ መጠበቅ
-    await asyncio.sleep(30) 
-    
-    game_joining = False
-    game_active = True
-    drawn_numbers.clear()
-    
-    await context.bot.send_message(
-        chat_id=game_chat_id, 
-        text="⏰ **ጊዜው አልቋል!** ቁጥሮች መውጣት ይጀምራሉ... (በየ 5 ሰከንዱ)"
-    )
-    
-    # Auto-draw ን ማስጀመር
-    asyncio.create_task(auto_draw_loop(context))
-
-async def play_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global game_active, game_joining, game_chat_id
-    
+async def service_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    user_id = query.from_user.id
-    user_name = query.from_user.first_name
+    service_key = query.data
     
-    if user_id in banned_users:
-        await query.answer("🚫 እርስዎ ከጨዋታው ተከልክለዋል!", show_alert=True)
+    if service_key == "back_to_menu":
+        await start(update, context)
         return
 
-    if user_id in eliminated_users:
-        await query.message.reply_text(f"🚫 {user_name}፣ ሐሰተኛ ቢንጎ ስለጫኑ ከጨዋታው ተሰርዘዋል!")
-        return
-
-    if user_id in user_cards:
-        await query.message.reply_text(f"⚠️ {user_name}፣ አስቀድመው ካርድ አለዎት!")
-        return
-
-    # ካርድ ማመንጨት
-    card_numbers = random.sample(range(1, 31), 9)
-    user_cards[user_id] = card_numbers
-    
-    keyboard = [[InlineKeyboardButton("🎉 BINGO!", callback_data=f"bingo_{user_id}")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    card_display = f"🎟️ **{user_name}፣ ይህ የእርስዎ ካርድ ነው፦**\n\n"
-    card_display += f"[ {card_numbers[0]:02d} ]  [ {card_numbers[1]:02d} ]  [ {card_numbers[2]:02d} ]\n"
-    card_display += f"[ {card_numbers[3]:02d} ]  [ {card_numbers[4]:02d} ]  [ {card_numbers[5]:02d} ]\n"
-    card_display += f"[ {card_numbers[6]:02d} ]  [ {card_numbers[7]:02d} ]  [ {card_numbers[8]:02d} ]\n\n"
-    card_display += "👉 ቁጥሮችዎ ሁሉ ሲወጡ የ BINGO ቁልፉን ይጫኑ!"
-    
-    await query.message.reply_text(card_display, reply_markup=reply_markup, parse_mode='Markdown')
-    
-    # ጨዋታው ገና ካልተጀመረ (መጀመሪያው ሰው ካርድ ሲወስድ) የመጠበቂያ ጊዜውን ጀምር
-    if not game_active and not game_joining:
-        game_joining = True
-        game_chat_id = query.message.chat_id
-        await context.bot.send_message(
-            chat_id=game_chat_id, 
-            text="🚀 **ጨዋታው ተጀምሯል!** ሁሉም ሰው ካርድ እንዲያገኝ **30 ሰከንድ** አለው። አሁን ይቀላቀሉ!"
-        )
-        asyncio.create_task(start_countdown(context))
-
-async def auto_draw_loop(context: ContextTypes.DEFAULT_TYPE):
-    global game_active, drawn_numbers
-    
-    while game_active and len(drawn_numbers) < 30:
-        await asyncio.sleep(5) 
+    if service_key in SERVICES:
+        service = SERVICES[service_key]
         
-        if not game_active: break
+        message_text = f"*{service['name']}*\n\n"
+        message_text += f"ለዚህ አገልግሎት የሚያስፈልጉ ሰነዶች፦\n{service['docs']}\n\n"
+        message_text += "✅ ሰነዶችዎ ሙሉ ከሆኑ ከታች ያለውን 'ሰነዶቼን ልላክ' የሚለውን ቁልፍ ተጭነው ፎቶ ወይም PDF ይላኩ።\n*(ማሳሰቢያ፦ አንድ በአንድ አድርገው ብዙ ፎቶዎችን ወይም PDF መላክ ይችላሉ)*"
         
-        available = [n for n in range(1, 31) if n not in drawn_numbers]
-        if not available: 
-            game_active = False
-            await context.bot.send_message(chat_id=game_chat_id, text="ሁሉም ቁጥሮች ወጥተዋል! አዲስ ጨዋታ ለመጀመር /reset ይጻፉ።")
-            break
-            
-        num = random.choice(available)
-        drawn_numbers.append(num)
+        keyboard = [
+            [InlineKeyboardButton("📤 ሰነዶቼን ልላክ", callback_data=f"upload_{service_key}")],
+            [InlineKeyboardButton("🔙 ወደ ዋናው ማውጫ", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         
-        text = f"🎲 **የወጣው ቁጥር፦ {num}**\n\n"
-        text += f"የወጡ ቁጥሮች፦ {', '.join(map(str, drawn_numbers))}"
-        
-        await context.bot.send_message(chat_id=game_chat_id, text=text, parse_mode='Markdown')
+        await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def bingo_claim(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global game_active
-    
+async def upload_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
-    user_name = query.from_user.first_name
+    await query.answer()
     
-    if user_id not in user_cards:
-        await query.answer("እባክዎ መጀመሪያ ጨዋታውን ይቀላቀሉ!", show_alert=True)
+    service_key = query.data.split("_")[1]
+    context.user_data['uploading_service'] = service_key
+    
+    await query.edit_message_text(
+        f"📥 እባክዎ ለ *{SERVICES[service_key]['name']}* የሚያስፈልጉትን ሰነዶች ፎቶ ወይም ፒዲኤፍ (PDF) አድርገው ይላኩ።\n\n"
+        "በርካታ ፋይሎች ካሉዎት አንዱን ከሌላው በመቀጠል መላክ ይችላሉ።\n"
+        "ሁሉንም ሰነዶች ልከው ሲጨርሱ የ'✅ አስቀምጥ እና ላክ' ቁልፍን ይጫኑ።",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ አስቀምጥ እና ላክ", callback_data="finish_upload")]
+        ])
+    )
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if 'uploading_service' not in context.user_data:
+        await update.message.reply_text("እባክዎ መጀመሪያ /start በማለት አገልግሎት ይምረጡ።")
         return
+
+    service_name = SERVICES[context.user_data['uploading_service']]['name']
+    user_name = update.effective_user.first_name
+    user_id = update.effective_user.id
+    
+    try:
+        if update.message.photo:
+            file_id = update.message.photo[-1].file_id
+            await context.bot.send_photo(
+                chat_id=ADMIN_ID, 
+                photo=file_id, 
+                caption=f"📥 አዲስ ሰነድ መጥቷል!\n\n👤 ከ፦ {user_name} (ID: {user_id})\n📌 አገልግሎት፦ {service_name}\n📎 አይነት፦ ፎቶ"
+            )
+        elif update.message.document:
+            file_id = update.message.document.file_id
+            await context.bot.send_document(
+                chat_id=ADMIN_ID, 
+                document=file_id, 
+                caption=f"📥 አዲስ ሰነድ መጥቷል!\n\n👤 ከ፦ {user_name} (ID: {user_id})\n📌 አገልግሎት፦ {service_name}\n📎 አይነት፦ ዶክመንት/PDF"
+            )
         
-    if all(num in drawn_numbers for num in user_cards[user_id]):
-        game_active = False 
-        await query.answer("🎉 እንኳን ደስ አለዎት!", show_alert=True)
-        await query.message.reply_text(f"🏆 **ቢንጎ!** {user_name} አሸነፈ! 🎉\n\nአዲስ ጨዋታ ለመጀመር /reset ይጻፉ።")
-    else:
-        eliminated_users.add(user_id)
-        if user_id in user_cards:
-            del user_cards[user_id]
-            
-        await query.answer("❌ ሐሰተኛ ቢንጎ! ከጨዋታው ተሰርዘዋል።", show_alert=True)
-        await query.message.reply_text(f"🚫 **{user_name}** ሐሰተኛ ቢንጎ ስለጫኑ ከጨዋታው ተሰርዘዋል!")
+        await update.message.reply_text("✅ ፋይሉ ተቀብሏል! ተጨማሪ ፋይል ካለ ይላኩ፣ ሲጨርሱ '✅ አስቀምጥ እና ላክ' የሚለውን ይጫኑ።")
+        
+    except Exception as e:
+        print(f"Error sending to admin: {e}")
+        await update.message.reply_text("❌ ፋይሉን መላክ አልተቻለም። እባክዎ ቆይተው እንደገና ይሞክሩ።")
 
-# ==================== የአስተዳዳሪ ትዕዛዞች ====================
-async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("🚫 ይህን ትዕዛዝ ለመጠቀም አስተዳዳሪ መሆን አለብዎት!")
-        return
-    try:
-        user_to_ban = int(context.args[0])
-        banned_users.add(user_to_ban)
-        await update.message.reply_text(f"✅ ተጠቃሚው (ID: {user_to_ban}) ከBingo ጨዋታ ተከልክሏል።")
-    except (IndexError, ValueError):
-        await update.message.reply_text("⚠️ አጠቃቀም፦ /ban <የተጠቃሚው_ID>")
-
-async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    try:
-        user_to_unban = int(context.args[0])
-        banned_users.discard(user_to_unban)
-        await update.message.reply_text(f"✅ ተጠቃሚው (ID: {user_to_unban}) ወደ ጨዋታው ተመልሷል።")
-    except (IndexError, ValueError):
-        await update.message.reply_text("⚠️ አጠቃቀም፦ /unban <የተጠቃሚው_ID>")
-
-async def reset_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global game_active, game_joining, drawn_numbers, user_cards, eliminated_users
-    game_active = False
-    game_joining = False
-    drawn_numbers.clear()
-    user_cards.clear()
-    eliminated_users.clear()
-    await update.message.reply_text("🔄 ጨዋታው አዲስ ሆኗል! አዲስ ካርድ ለማግኘት /start ይጻፉ።")
+async def finish_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    if 'uploading_service' in context.user_data:
+        del context.user_data['uploading_service']
+        
+    await query.edit_message_text(
+        "✅ ሂደቱ ተጠናቅቋል! ሰነዶችዎ ወደ ቢሮው ተልከዋል። በቅርቡ መልስ ያገኛሉ።\n\nአዲስ ማመልከቻ ለማድረግ /start ይጻፉ።"
+    )
 
 # ==================== የFlask ሰርቨር ====================
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bingo Bot is running"
+    return "Building Permit Bot is running"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -196,11 +152,10 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("reset", reset_game))
-    application.add_handler(CommandHandler("ban", ban_user))
-    application.add_handler(CommandHandler("unban", unban_user))
-    application.add_handler(CallbackQueryHandler(play_game, pattern="^play_action$"))
-    application.add_handler(CallbackQueryHandler(bingo_claim, pattern="^bingo_"))
+    application.add_handler(CallbackQueryHandler(service_callback, pattern="^(plan|new_house|built_house|fence|renovation|back_to_menu)$"))
+    application.add_handler(CallbackQueryHandler(upload_callback, pattern="^upload_"))
+    application.add_handler(CallbackQueryHandler(finish_upload, pattern="^finish_upload$"))
+    application.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_document))
     
-    print("Bingo ቡት መስራት ጀምሯል...")
+    print("የህንፃ ፈቃድ ቦት መስራት ጀምሯል...")
     application.run_polling()
