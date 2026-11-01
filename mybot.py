@@ -6,7 +6,7 @@ import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAEuIWAkzvq9eer6KKOJUqLdRrA6beIxfZw" 
+TELEGRAM_TOKEN = "9161480725:AAGz0-Aewon8hbCdGksMGBU-P8hvh4hrNK4" 
 ADMIN_ID = 8776479328  # <--- የእርስዎን የቴሌግራም ID እዚህ ያስገቡ
 # ==================================================================
 
