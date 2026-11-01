@@ -6,13 +6,12 @@ import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAGz2QyJY_N7bkh6GWMytpgYzf-S2N-WoDw" 
+TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1kslpgKpK0WGbgVCuz80o" 
 ADMIN_ID = 8776479328  # <--- የእርስዎን የቴሌግራም ID እዚህ ያስገቡ
 # ==================================================================
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# የአገልግሎቶች እና መመሪያዎች ዝርዝር (የጠየቁት ሰነዶች ተካተዋል)
 SERVICES = {
     "plan": {
         "name": "📐 ፕላን ስምምነት",
@@ -37,16 +36,22 @@ SERVICES = {
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # የተጠቃሚውን የፋይል መላኪያ ሁኔታ ማጽዳት
     context.user_data.clear()
-    
+    keyboard = [[InlineKeyboardButton("🚀 አስጀምር (Start)", callback_data="show_menu")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "እንኳን ወደ ህንፃ ፈቃድ መመሪያ ቦት በደህና መጡ! 🏗️\n\nለመጀመር ከታች ያለውን ቁልፍ ይጫኑ።",
+        reply_markup=reply_markup
+    )
+
+async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
     keyboard = []
     for key, service in SERVICES.items():
         keyboard.append([InlineKeyboardButton(service['name'], callback_data=key)])
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "እንኳን ወደ ህንፃ ፈቃድ መመሪያ ቦት በደህና መጡ! 🏗️\n\n"
+    await query.edit_message_text(
         "እባክዎ ማወቅ የሚፈልጉትን አገልግሎት ከታች ይምረጡ፦",
         reply_markup=reply_markup
     )
@@ -54,16 +59,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def service_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     service_key = query.data
     
     if service_key == "back_to_menu":
-        await start(update, context)
+        await show_menu(update, context)
         return
 
     if service_key in SERVICES:
         service = SERVICES[service_key]
-        
         message_text = f"*{service['name']}*\n\n"
         message_text += f"ለዚህ አገልግሎት የሚያስፈልጉ ሰነዶች፦\n{service['docs']}\n\n"
         message_text += "✅ ሰነዶችዎ ሙሉ ከሆኑ ከታች ያለውን 'ሰነዶቼን ልላክ' የሚለውን ቁልፍ ተጭነው ፎቶ ወይም PDF ይላኩ።\n*(ማሳሰቢያ፦ አንድ በአንድ አድርገው ብዙ ፎቶዎችን ወይም PDF መላክ ይችላሉ)*"
@@ -73,19 +76,19 @@ async def service_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔙 ወደ ዋናው ማውጫ", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
         await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def upload_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     service_key = query.data.split("_")[1]
+    
     context.user_data['uploading_service'] = service_key
+    context.user_data['files'] = [] # ፋይሎችን በማህደረ ትውስታ ለመያዝ ዝርዝር መፍጠር
     
     await query.edit_message_text(
-        f"📥 እባክዎ ለ *{SERVICES[service_key]['name']}* የሚያስፈልጉትን ሰነዶች ፎቶ ወይም ፒዲኤፍ (PDF) አድርገው ይላኩ።\n\n"
-        "በርካታ ፋይሎች ካሉዎት አንዱን ከሌላው በመቀጠል መላክ ይችላሉ።\n"
+        f"📥 እባክዎ ለ *{SERVICES[service_key]['name']}* የሚያስፈልጉትን ሰነዶች ፎቶ ወይም PDF አድርገው ይላኩ።\n\n"
+        "በርካታ ፋይሎች ካሉዎት አንዱን ከሌላው በመቀጠል መላክ ይችላሉ (በማህደረ ትውስታ ይያዛሉ)።\n"
         "ሁሉንም ሰነዶች ልከው ሲጨርሱ የ'✅ አስቀምጥ እና ላክ' ቁልፍን ይጫኑ።",
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup([
@@ -98,41 +101,61 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("እባክዎ መጀመሪያ /start በማለት አገልግሎት ይምረጡ።")
         return
 
-    service_name = SERVICES[context.user_data['uploading_service']]['name']
-    user_name = update.effective_user.first_name
-    user_id = update.effective_user.id
-    
-    try:
-        if update.message.photo:
-            file_id = update.message.photo[-1].file_id
-            await context.bot.send_photo(
-                chat_id=ADMIN_ID, 
-                photo=file_id, 
-                caption=f"📥 አዲስ ሰነድ መጥቷል!\n\n👤 ከ፦ {user_name} (ID: {user_id})\n📌 አገልግሎት፦ {service_name}\n📎 አይነት፦ ፎቶ"
-            )
-        elif update.message.document:
-            file_id = update.message.document.file_id
-            await context.bot.send_document(
-                chat_id=ADMIN_ID, 
-                document=file_id, 
-                caption=f"📥 አዲስ ሰነድ መጥቷል!\n\n👤 ከ፦ {user_name} (ID: {user_id})\n📌 አገልግሎት፦ {service_name}\n📎 አይነት፦ ዶክመንት/PDF"
-            )
-        
-        await update.message.reply_text("✅ ፋይሉ ተቀብሏል! ተጨማሪ ፋይል ካለ ይላኩ፣ ሲጨርሱ '✅ አስቀምጥ እና ላክ' የሚለውን ይጫኑ።")
-        
-    except Exception as e:
-        print(f"Error sending to admin: {e}")
-        await update.message.reply_text("❌ ፋይሉን መላክ አልተቻለም። እባክዎ ቆይተው እንደገና ይሞክሩ።")
+    # ፋይሉን በማህደረ ትውስታ ውስጥ ማስቀመጥ (ወደ አድሚን አይላክም)
+    if update.message.photo:
+        file_id = update.message.photo[-1].file_id
+        context.user_data['files'].append({'type': 'photo', 'id': file_id})
+    elif update.message.document:
+        file_id = update.message.document.file_id
+        context.user_data['files'].append({'type': 'document', 'id': file_id})
+    else:
+        return
+
+    file_num = len(context.user_data['files'])
+    await update.message.reply_text(f"✅ ፋይል {file_num} በማህደረ ትውስታ ተቀምጧል! ተጨማሪ ፋይል ካለ ይላኩ ወይም '✅ አስቀምጥ እና ላክ' ይጫኑ።")
 
 async def finish_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    if 'uploading_service' in context.user_data:
-        del context.user_data['uploading_service']
+    files = context.user_data.get('files', [])
+    service_key = context.user_data.get('uploading_service')
+    
+    if not files or not service_key:
+        await query.edit_message_text("⚠️ ምንም ፋይል አልተላከም! እባክዎ መጀመሪያ ፋይል ይላኩ።")
+        return
         
+    service_name = SERVICES[service_key]['name']
+    user_name = query.from_user.first_name
+    user_id = query.from_user.id
+    
+    await query.edit_message_text(f"⏳ በአጠቃላይ {len(files)} ፋይሎች ወደ ቢሮው እየተላኩ ነው... እባክዎ ይጠብቁ።")
+    
+    # ፋይሎቹን በሙሉ ወደ አድሚን መላክ
+    for i, file in enumerate(files, 1):
+        try:
+            if file['type'] == 'photo':
+                await context.bot.send_photo(
+                    chat_id=ADMIN_ID, 
+                    photo=file['id'], 
+                    caption=f"📥 አዲስ ሰነድ መጥቷል! (ፋይል {i}/{len(files)})\n\n👤 ከ፦ {user_name} (ID: {user_id})\n📌 አገልግሎት፦ {service_name}"
+                )
+            elif file['type'] == 'document':
+                await context.bot.send_document(
+                    chat_id=ADMIN_ID, 
+                    document=file['id'], 
+                    caption=f"📥 አዲስ ሰነድ መጥቷል! (ፋይል {i}/{len(files)})\n\n👤 ከ፦ {user_name} (ID: {user_id})\n📌 አገልግሎት፦ {service_name}"
+                )
+        except Exception as e:
+            print(f"Error sending file {i}: {e}")
+            
+    # የተጠቃሚውን መረጃ ማጽዳት
+    context.user_data.clear()
+    
     await query.edit_message_text(
-        "✅ ሂደቱ ተጠናቅቋል! ሰነዶችዎ ወደ ቢሮው ተልከዋል። በቅርቡ መልስ ያገኛሉ።\n\nአዲስ ማመልከቻ ለማድረግ /start ይጻፉ።"
+        f"✅ ሂደቱ በተሳካ ሁኔታ ተጠናቅቋል! በአጠቃላይ **{len(files)}** ፋይሎች ወደ ቢሮው ተልከዋል። በቅርቡ መልስ ያገኛሉ።\n\n"
+        "አዲስ ማመልከቻ ለማድረግ /start ይጻፉ።",
+        parse_mode='Markdown'
     )
 
 # ==================== የFlask ሰርቨር ====================
@@ -152,6 +175,7 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(show_menu, pattern="^show_menu$"))
     application.add_handler(CallbackQueryHandler(service_callback, pattern="^(plan|new_house|built_house|fence|renovation|back_to_menu)$"))
     application.add_handler(CallbackQueryHandler(upload_callback, pattern="^upload_"))
     application.add_handler(CallbackQueryHandler(finish_upload, pattern="^finish_upload$"))
