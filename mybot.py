@@ -1,5 +1,5 @@
 import logging
-from google import genai
+import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 from flask import Flask
@@ -7,14 +7,11 @@ import threading
 import os
 
 # ==================== ሚስጥራዊ ቁልፎችዎን እዚህ ያስገቡ ====================
-TELEGRAM_TOKEN = "9168291290:AAGGtKKlBgin-UMb3c2DC_kMQ-Ug6jJZ7wU"
-GEMINI_API_KEY = "AQ.Ab8RN6IZmuG6wyVe_r8Smq2QLR1lgo9m-oaCzeB3SfvF7678Pw" # የአንተ አዲስ AQ. ቁልፍ
+TELEGRAM_TOKEN = "9168291290:AAGyRH_NDKeRgY1kslpgKpK0WGbgVCuz80o"
+GROQ_API_KEY = "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" # በ gsk_ የሚጀምረውን ቁልፍ
 # ==================================================================
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-# አዲሱ የGoogle AI ላይብረሪ አጠቃቀም
-client = genai.Client(api_key=GEMINI_API_KEY)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ሰላም! እኔ በ AI የተጎለበተ ረዳትዎ ነኝ። ማንኛውንም ጥያቄ መጠየቅ ይችላሉ።")
@@ -24,16 +21,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action="typing")
     
     try:
-        # አዲሱ የGoogle AI ጥያቄ አቀራረብ (ሞዴሉን ወደ gemini-3.8-flash ቀይረነዋል)
-        response = client.models.generate_content(
-            model='gemini-3.8-flash',
-            contents=user_message,
+        response = requests.post(
+            url="https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.1-8b-instant", # ፈጣኑ እና ነፃው የGroq ሞዴል
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant. Always reply in Amharic."},
+                    {"role": "user", "content": user_message}
+                ]
+            },
+            timeout=30
         )
-        bot_reply = response.text
-        await update.message.reply_text(bot_reply)
+        
+        if response.status_code == 200:
+            bot_reply = response.json()["choices"][0]["message"]["content"]
+            await update.message.reply_text(bot_reply)
+        else:
+            print(f"Groq Error: {response.status_code} - {response.text}")
+            await update.message.reply_text("ይቅርታ፣ መልስ ለመስጠት ስሞክር ስህተት ተፈጥሯል።")
+            
     except Exception as e:
         print(f"Error: {e}")
-        await update.message.reply_text("ይቅርታ፣ መልስ ለመስጠት ስሞክር ስህተት ተፈጥሯል። እባክዎ ቆይተው እንደገና ይሞክሩ።")
+        await update.message.reply_text("ይቅርታ፣ መልስ ለመስጠት ስሞክር ስህተት ተፈጥሯል።")
 
 app = Flask(__name__)
 
