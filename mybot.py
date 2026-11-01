@@ -196,7 +196,7 @@ if __name__ == '__main__':
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("menu", show_menu)) # /menu ሲባል ማውጫ ይከፈት
-    application.add_handler(MessageHandler(filters.Regex(f"^{MAIN_MENU_BUTTON}$"), show_menu)) # የታችኛው ቁልፍ ሲጫን
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(f"^{re.escape(MAIN_MENU_BUTTON)}$"), show_menu)) # የታችኛው ቁልፍ ሲጫን
     application.add_handler(CallbackQueryHandler(show_menu, pattern="^show_menu$"))
     application.add_handler(CallbackQueryHandler(service_callback, pattern="^(plan|new_house|built_house|fence|renovation|back_to_menu)$"))
     application.add_handler(CallbackQueryHandler(upload_callback, pattern="^upload_"))
